@@ -124,6 +124,7 @@ void copyRFIDData() {
   delay(500);
 }
 
+//! TODO: Fix this function
 void writeCopiedData() {
   if (!mfrc522.PICC_IsNewCardPresent() || !mfrc522.PICC_ReadCardSerial()) {
     return;
