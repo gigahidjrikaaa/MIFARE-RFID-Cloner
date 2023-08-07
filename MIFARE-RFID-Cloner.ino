@@ -35,13 +35,15 @@ void loop() {
 
   if (digitalRead(BTN_COPY_PIN) == LOW) {
     tone(BUZZER_PIN, 1500, 100);
-    copyRFIDData();
+    // copyRFIDData();
+    copyUIDData();
     mfrc522.PCD_Init();
   }
 
   if (digitalRead(BTN_WRITE_PIN) == LOW && dataCopied) {
     tone(BUZZER_PIN, 750, 100);
-    writeCopiedData();
+    // writeCopiedData();
+    writeUIDData();
     mfrc522.PCD_Init();
   }
 }
@@ -96,14 +98,15 @@ void copyRFIDData() {
   byte buffer[18];
   byte bufferSize = sizeof(buffer);
   for (byte i = 0; i < 64; i++) {
+    tone(BUZZER_PIN, 250, 50);
     blockAddr = i;
     status = mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, blockAddr, &mifareKey, &(mfrc522.uid));
     if (status == MFRC522::STATUS_OK) {
       status = mfrc522.MIFARE_Read(blockAddr, buffer, &bufferSize);
       if (status == MFRC522::STATUS_OK) {
-        Serial.print("Block ");
+        Serial.print("Block\t");
         Serial.print(blockAddr);
-        Serial.print(": ");
+        Serial.print("\t: ");
         for (byte j = 0; j < 16; j++) {
           Serial.print(buffer[j] < 0x10 ? " 0" : " ");
           Serial.print(buffer[j], HEX);
@@ -182,6 +185,87 @@ void writeCopiedData() {
   }
 
   Serial.println("Data written to the target card successfully!");
+  tone(BUZZER_PIN, 1000, 100);
+  delay(200);
+  tone(BUZZER_PIN, 1000, 100);
+  delay(500);
+}
+
+void copyUIDData() {
+  if (!mfrc522.PICC_IsNewCardPresent() || !mfrc522.PICC_ReadCardSerial()) {
+    return;
+  }
+
+  if (mfrc522.uid.size != 4) {
+    Serial.println("This card does not have valid UID data.");
+    return;
+  }
+
+  for (byte i = 0; i < mfrc522.uid.size; i++) {
+    copiedData[i] = mfrc522.uid.uidByte[i];
+  }
+
+  dataCopied = true;
+  Serial.println("UID Data copied successfully!");
+  tone(BUZZER_PIN, 1000, 100);
+  delay(200);
+  tone(BUZZER_PIN, 1000, 100);
+  delay(500);
+}
+
+void writeUIDData() {
+  if (!mfrc522.PICC_IsNewCardPresent() || !mfrc522.PICC_ReadCardSerial()) {
+    return;
+  }
+
+  if (!dataCopied) {
+    Serial.println("No data copied. Please copy UID data first.");
+    return;
+  }
+
+  MFRC522::StatusCode status;
+  MFRC522::PICC_Type piccType;
+
+  piccType = mfrc522.PICC_GetType(mfrc522.uid.sak);
+  if (piccType != MFRC522::PICC_TYPE_MIFARE_MINI &&
+      piccType != MFRC522::PICC_TYPE_MIFARE_1K &&
+      piccType != MFRC522::PICC_TYPE_MIFARE_4K) {
+    Serial.println("This card is not supported for writing data.");
+    return;
+  }
+
+  // This is a sample MIFARE Classic key (6 bytes) used for authentication.
+  byte key[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+  MFRC522::MIFARE_Key mifareKey;
+  for (byte i = 0; i < 6; i++) {
+    mifareKey.keyByte[i] = key[i];
+  }
+
+  byte blockAddr = 1;
+  byte bufferSize = mfrc522.uid.size;
+
+  // Authenticate with the target card using the same key as before
+  status = mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, blockAddr, &mifareKey, &(mfrc522.uid));
+  if (status != MFRC522::STATUS_OK) {
+    Serial.println("Authentication failed for the target card.");
+    return;
+  }
+
+  // Write the copied UID data to the target card
+  status = mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, blockAddr, &mifareKey, &(mfrc522.uid));
+  if (status == MFRC522::STATUS_OK) {
+    status = mfrc522.MIFARE_Write(blockAddr, copiedData, bufferSize);
+    if (status != MFRC522::STATUS_OK) {
+      Serial.print("Writing UID data to the target card failed. Status code: 0x");
+      Serial.println(status, HEX);
+      return;
+    }
+  } else {
+    Serial.println("Authentication failed for the target card.");
+    return;
+  }
+
+  Serial.println("UID Data written to the target card successfully!");
   tone(BUZZER_PIN, 1000, 100);
   delay(200);
   tone(BUZZER_PIN, 1000, 100);
