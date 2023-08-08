@@ -187,7 +187,7 @@ void writeCopiedData() {
   }
 
   for (byte blockAddr = 0; blockAddr < maxBlocks; blockAddr++) {
-    if (blockAddr == 0) continue; // Skip writing to Block 0 (Manufacturer Block)
+    // if (blockAddr == 0) continue; // Skip writing to Block 0 (Manufacturer Block)
     if (isSectorTrailer(blockAddr)) continue; // Skip writing to sector trailers
 
     tone(BUZZER_PIN, 200 + blockAddr * 25, 25);
