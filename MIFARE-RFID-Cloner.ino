@@ -176,6 +176,7 @@ void writeCopiedData() {
       break;
     default:
       Serial.println("This card is not supported for writing data.");
+      errorTone();
       return;
   }
 
@@ -189,6 +190,7 @@ void writeCopiedData() {
     if (blockAddr == 0) continue; // Skip writing to Block 0 (Manufacturer Block)
     if (isSectorTrailer(blockAddr)) continue; // Skip writing to sector trailers
 
+    tone(BUZZER_PIN, 200 + blockAddr * 25, 25);
     Serial.print("Writing to Block ");
     Serial.print(blockAddr);
     Serial.print("... ");
