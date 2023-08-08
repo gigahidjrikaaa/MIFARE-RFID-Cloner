@@ -125,7 +125,7 @@ void copyRFIDData() {
 
     status = mfrc522.MIFARE_Read(blockAddr, buffer, &bufferSize);
     if (status == MFRC522::STATUS_OK) {
-      tone(BUZZER_PIN, 500, 10);
+      tone(BUZZER_PIN, 200 + blockAddr * 25, 25);
       // Output the data inside of the card
       Serial.print("Block ");
       Serial.print(blockAddr);
@@ -186,6 +186,7 @@ void writeCopiedData() {
   }
 
   for (byte blockAddr = 0; blockAddr < maxBlocks; blockAddr++) {
+    if (blockAddr == 0) continue; // Skip writing to Block 0 (Manufacturer Block)
     if (isSectorTrailer(blockAddr)) continue; // Skip writing to sector trailers
 
     Serial.print("Writing to Block ");
