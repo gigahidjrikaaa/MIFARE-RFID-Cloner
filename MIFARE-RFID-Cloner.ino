@@ -64,9 +64,10 @@ void readRFID() {
   MFRC522::PICC_Type piccType = mfrc522.PICC_GetType(mfrc522.uid.sak);
   Serial.print("Card Type: ");
   Serial.println(mfrc522.PICC_GetTypeName(piccType));
+  successTone();
 
   // No need to halt communication, just delay before the next operation
-  delay(1000);
+  delay(300);
 }
 
 void errorTone()
@@ -74,6 +75,14 @@ void errorTone()
   tone(BUZZER_PIN, 150, 100);
   delay(200);
   tone(BUZZER_PIN, 150, 100);
+  delay(700);
+}
+
+void successTone()
+{
+  tone(BUZZER_PIN, 1000, 100);
+  delay(200);
+  tone(BUZZER_PIN, 1000, 100);
   delay(500);
 }
 
@@ -149,10 +158,7 @@ void copyRFIDData() {
 
   dataCopied = true;
   Serial.println("Data copied successfully!");
-  tone(BUZZER_PIN, 1000, 100);
-  delay(200);
-  tone(BUZZER_PIN, 1000, 100);
-  delay(500);
+  successTone();
 }
 
 void writeCopiedData() {
@@ -214,8 +220,5 @@ void writeCopiedData() {
   }
 
   Serial.println("Data written to the target card successfully!");
-  tone(BUZZER_PIN, 1000, 100);
-  delay(200);
-  tone(BUZZER_PIN, 1000, 100);
-  delay(500);
+  successTone();
 }
