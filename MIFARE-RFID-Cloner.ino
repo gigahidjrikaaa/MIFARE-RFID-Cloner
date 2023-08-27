@@ -1,5 +1,6 @@
 #include <SPI.h>
 #include <MFRC522.h>
+#include <avr/pgmspace.h>  // Required for PROGMEM
 
 #define SS_PIN 10
 #define RST_PIN 5
@@ -86,6 +87,63 @@ void successTone()
   delay(500);
 }
 
+const byte commonKeys[][6] PROGMEM = {
+  {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF},
+  {0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+  {0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5},
+  {0xB0, 0xB1, 0xB2, 0xB3, 0xB4, 0xB5},
+  {0x4D, 0x3A, 0x99, 0xC3, 0x51, 0xDD},
+  {0x1A, 0x98, 0x2C, 0x7E, 0x45, 0x9A},
+  {0xD3, 0xF7, 0xD3, 0xF7, 0xD3, 0xF7},
+  {0xAA, 0xFF, 0xAA, 0xFF, 0xAA, 0xFF},
+  {0x71, 0x4C, 0x5C, 0x88, 0x6E, 0x97},
+  {0x58, 0x7E, 0xE5, 0xF9, 0x35, 0x0F},
+  {0xA0, 0x47, 0x8C, 0xC3, 0x90, 0x91},
+  {0x53, 0x3C, 0xB6, 0xC7, 0x23, 0xF6},
+  {0x8F, 0xD0, 0xA4, 0xF2, 0x56, 0xE9},
+  {0x54, 0x72, 0x61, 0x69, 0x6E, 0x6C},  // ASCII "TrainL"
+  {0x12, 0x34, 0x56, 0x78, 0x90, 0xAB},  // Numeric + AB
+  {0xAB, 0xCD, 0xEF, 0x12, 0x34, 0x56},  // Alphabetic + 123456
+  {0xBA, 0xAD, 0xF0, 0x0D, 0xBA, 0xAD},  // Bad food bad
+  {0xDE, 0xAD, 0xBE, 0xEF, 0xDE, 0xAD}   // Dead beef dead
+};
+
+// Try multiple keys for Block 0
+bool tryMultipleKeysForBlock0() {
+  MFRC522::StatusCode status;
+  byte keyBuffer[6];  // Buffer to hold key from PROGMEM
+
+  for (int i = 0; i < sizeof(commonKeys) / sizeof(commonKeys[0]); i++) {
+    MFRC522::MIFARE_Key mifareKey;
+
+    // Copy key from PROGMEM to RAM
+    memcpy_P(keyBuffer, &commonKeys[i], 6);
+
+    for (byte j = 0; j < 6; j++) {
+      mifareKey.keyByte[j] = keyBuffer[j];
+    }
+    Serial.print("Trying authentication with key: ");
+    for (byte j = 0; j < 6; j++) {
+      Serial.print(keyBuffer[j] < 0x10 ? " 0" : " ");
+      Serial.print(keyBuffer[j], HEX);
+    }
+    Serial.println();
+    
+    status = mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, 0, &mifareKey, &(mfrc522.uid));
+    if (status == MFRC522::STATUS_OK) {
+      Serial.print("Authentication succeeded with key: ");
+      for (byte j = 0; j < 6; j++) {
+        Serial.print(keyBuffer[j] < 0x10 ? " 0" : " ");
+        Serial.print(keyBuffer[j], HEX);
+      }
+      Serial.println();
+      return true; // Successful authentication
+    }
+  }
+  return false; // Failed to authenticate with any key
+}
+
+
 bool isSectorTrailer(byte blockAddr) {
   return ((blockAddr + 1) % 4 == 0) || (blockAddr == 127); // For MIFARE Classic 1K and Mini
 }
@@ -125,34 +183,43 @@ void copyRFIDData() {
   byte bufferSize = sizeof(buffer);
 
   for (byte blockAddr = 0; blockAddr < maxBlocks; blockAddr++) {
-    status = mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, blockAddr, &mifareKey, &(mfrc522.uid));
-    if (status != MFRC522::STATUS_OK) {
-      Serial.println("Authentication failed for the source card.");
-      errorTone();
-      return;
-    }
-
-    status = mfrc522.MIFARE_Read(blockAddr, buffer, &bufferSize);
-    if (status == MFRC522::STATUS_OK) {
-      tone(BUZZER_PIN, 200 + blockAddr * 25, 25);
-      // Output the data inside of the card
-      Serial.print("Block ");
-      Serial.print(blockAddr);
-      if (isSectorTrailer(blockAddr)) {
-        Serial.print(" [SECTOR TRAILER]: ");
-      } else {
-        Serial.print(": ");
+    // Special handling for block 0
+    if (blockAddr == 0) {
+      if (!tryMultipleKeysForBlock0()) {
+        Serial.println("Authentication failed for block 0.");
+        errorTone();
+        return;
       }
-      for (byte j = 0; j < 16; j++) {
-        Serial.print(buffer[j] < 0x10 ? " 0" : " ");
-        Serial.print(buffer[j], HEX);
-        copiedData[blockAddr * 16 + j] = buffer[j];
-      }
-      Serial.println();
     } else {
-      Serial.println("Reading data from the source card failed.");
-      errorTone();
-      return;
+      status = mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, blockAddr, &mifareKey, &(mfrc522.uid));
+      if (status != MFRC522::STATUS_OK) {
+        Serial.println("Authentication failed for the source card.");
+        errorTone();
+        return;
+      }
+
+      status = mfrc522.MIFARE_Read(blockAddr, buffer, &bufferSize);
+      if (status == MFRC522::STATUS_OK) {
+        tone(BUZZER_PIN, 200 + blockAddr * 25, 25);
+        // Output the data inside of the card
+        Serial.print("Block ");
+        Serial.print(blockAddr);
+        if (isSectorTrailer(blockAddr)) {
+          Serial.print(" [SECTOR TRAILER]: ");
+        } else {
+          Serial.print(": ");
+        }
+        for (byte j = 0; j < 16; j++) {
+          Serial.print(buffer[j] < 0x10 ? " 0" : " ");
+          Serial.print(buffer[j], HEX);
+          copiedData[blockAddr * 16 + j] = buffer[j];
+        }
+        Serial.println();
+      } else {
+        Serial.println("Reading data from the source card failed.");
+        errorTone();
+        return;
+      }
     }
   }
 
