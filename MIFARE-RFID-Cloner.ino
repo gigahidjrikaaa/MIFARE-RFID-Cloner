@@ -249,8 +249,10 @@ void writeCopiedData() {
       break;
     default:
       Serial.println("This card is not supported for writing data.");
-      errorTone();
-      return;
+      maxBlocks = 64;
+      // errorTone();
+      // return;
+      break;
   }
 
   byte key[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
